@@ -1,128 +1,73 @@
-import "./styles.css";
+import { useState } from "react";
+import { useStore, actions } from "./store";
+import DevicePanel from "./components/DevicePanel";
+import MergeConsole from "./components/MergeConsole";
+import PublishConsole from "./components/PublishConsole";
+import OpLog from "./components/OpLog";
 
-const project = {
-  "sourceNo": 10,
-  "id": "hxyfront-62008",
-  "port": 62008,
-  "title": "烟花燃放脚本编排",
-  "domain": "烟花燃放编排",
-  "prompt": "我想做一个面向烟花燃放编排师的燃放脚本前端工具，可以记录节目段落、烟花型号、口径、发射角度、点火时间、持续时间、安全距离和音乐时间点。页面需要有时间轴编排、燃放点位平面图、型号清单、冲突时间提示和整场节目预览。",
-  "palette": [
-    "#1d4ed8",
-    "#dc2626",
-    "#f59e0b"
-  ],
-  "metrics": [
-    "节目段落",
-    "点火节点",
-    "冲突提示",
-    "安全距离"
-  ],
-  "filters": [
-    "礼花弹",
-    "罗马烛光",
-    "扇形架",
-    "冷焰火"
-  ],
-  "fields": [
-    "节目段落",
-    "烟花型号",
-    "口径",
-    "发射角度",
-    "点火时间",
-    "安全距离"
-  ],
-  "records": [
-    [
-      "Intro",
-      "30mm扇形架",
-      "00:12.500",
-      "安全距离35m"
-    ],
-    [
-      "Chorus A",
-      "75mm礼花弹",
-      "01:08.200",
-      "与B点位间隔正常"
-    ],
-    [
-      "Finale",
-      "冷焰火",
-      "03:42.000",
-      "近景区待确认"
-    ]
-  ]
-};
+type Tab = "edit" | "merge" | "publish" | "log";
 
-function App() {
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: "edit", label: "双端编辑" },
+  { key: "merge", label: "合并台" },
+  { key: "publish", label: "发布台" },
+  { key: "log", label: "操作日志" },
+];
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>("edit");
+  const online = useStore((s) => s.networkOnline);
+  const draft = useStore((s) => s.mergeDraft);
+  const devices = useStore((s) => s.devices);
+  const committedOpIds = useStore((s) => s.committedOpIds);
+
+  const totalOps = devices.M01.ops.length + devices.B02.ops.length;
+
   return (
     <main className="app">
       <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
+        <p>hxyfront-62008 · 双端离线合并台</p>
+        <h1>烟花燃放脚本编排</h1>
+        <span>
+          主控平板与备份平板各自离线编辑节目段落、点火节点、点火时刻、安全距离与音乐时间点，修改留下设备号与序号。
+          联网后按节点合并：不同字段自动写入，同一字段两边不同则保留两版待选择；未处理冲突的段落不能发布。
+          安全距离变化重算点位危险区与型号用量，容量冲突或越出音乐锚点时保留最后一次通过版本并显示最早阻塞节点；
+          合并中断后本地改动仍在，重试不重复写入。
+        </span>
+        <div className="hero-status">
+          <span className={`net-dot ${online ? "online" : "offline"}`} />
+          <span>{online ? "已联网" : "已离线"}</span>
+          <span className="seq-pill">本机改动 {totalOps} 处</span>
+          <span className="seq-pill">已写入 opId {committedOpIds.length}</span>
+          {draft && <span className="seq-pill warn">合并草稿未完成</span>}
+        </div>
       </section>
 
-      <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[86, 14, 7, 32][index] ?? 12}</strong>
-          </article>
+      <nav className="tabs">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            className={tab === t.key ? "active" : ""}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+            {t.key === "merge" && draft && <em className="tab-dot" />}
+          </button>
         ))}
-      </section>
+        <button className="reset-all" onClick={actions.resetAll}>
+          重置全部
+        </button>
+      </nav>
 
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}筛选</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存草稿</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
-          <div>
-            <p>历史记录</p>
-            <h2>近期工作台</h2>
-          </div>
-          <button>导出摘要</button>
+      {tab === "edit" && (
+        <div className="device-grid">
+          <DevicePanel deviceId="M01" />
+          <DevicePanel deviceId="B02" />
         </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      )}
+      {tab === "merge" && <MergeConsole />}
+      {tab === "publish" && <PublishConsole />}
+      {tab === "log" && <OpLog />}
     </main>
   );
 }
-
-export default App;
